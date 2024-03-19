@@ -1,61 +1,67 @@
-<template>
-  <div>
-    <video autoplay ref="video"></video>
-    <button @click="classify()">Classify!</button>
-    <p v-if="label">{{label}}</p>
-  </div>
-</template>
+<script lang="ts" setup>
+import { imageClassifier } from 'ml5'
+import p5 from 'p5'
+import { onMounted, ref } from 'vue'
 
-<script>
-import { createImageClassifier } from '../services/ml5Service.js';
+let classifier
+let puffin
+let sketchInstance
+let label = ref('')
 
-export default {
-  data() {
-    return {
-      classifier: null,
-      label: null
-    }
-  },
-  mounted() {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices
-      .getUserMedia({
-        audio: false,
-        video: { facingMode: "user" },
-      })
-      .then(stream => {
-        console.log('Video stream:', stream); // Log the stream behind accessed
-        this.$refs.video.srcObject = stream;
-        this.$refs.video.play();
-        this.$nextTick(() => {
-          this.createClassifier();
-        });
-      })
-      .catch((err) => {
-        console.error(`User Media Error: ${err}`);
-      });
-    } else {
-      console.error("mediaDevices or getUserMedia not supported.");
-    }
-  },
-  methods: {
-    createClassifier() {
-      this.classifier = createImageClassifier('MobileNet', this.$refs.video, {}, () => {
-        console.log('Image Classifier model loaded');
-      });
-    },
-    classify() {
-      if (this.classifier) {
-        console.log(this.$refs.video)
-        this.classifier.predict(this.$refs.video, (err, results) => {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          this.label = results[0].className; // Show the first classification result
-        });
-      }
+function drawImage () {
+  sketchInstance.clear()
+  sketchInstance.image(puffin, 0, 0, sketchInstance.width, sketchInstance.height)
+}
+
+function setupP5Instance (p5Object) {
+  let canvas = p5Object.createCanvas(640, 480)
+  canvas.parent('canvas-container')
+  p5Object.fill(0)
+  p5Object.background(0)
+}
+
+function gotPredictionResults (error, results) {
+  if (error) console.error('ERROR', error)
+  else label.value = results[0]?.label
+}
+
+async function classifyImage () {
+  console.log('Model ready')
+  classifier.predict(puffin, gotPredictionResults)
+}
+
+onMounted(async () => {
+  puffin = new p5.Image()
+  const p5Init = p5Object => {
+    sketchInstance = p5Object
+    p5Object.setup = function () {
+      setupP5Instance(p5Object)
     }
   }
+
+  new p5(p5Init) // Instantiate new p5 object
+  classifier = await imageClassifier('MobileNet') // Initialize image classifier
+})
+
+const loadImage = (url) => new Promise((resolve) => {
+  puffin = sketchInstance.loadImage(url, () => {
+    drawImage()
+    resolve()
+  })
+})
+
+const onImageUrlChange = async event => {
+  await loadImage(event.target.value)
+  classifyImage()
 }
 </script>
+
+<template>
+  <div style="display: flex; flex-direction: column; align-items: center;">
+    <div id="canvas-container"></div>
+    <input placeholder="Enter image URL" type="text" @change="onImageUrlChange">
+    <h2>
+      {{ label }}
+    </h2>
+  </div>
+</template>
