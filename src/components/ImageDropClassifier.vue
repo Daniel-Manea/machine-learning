@@ -1,3 +1,12 @@
+<template>
+  <div style="display: flex; flex-direction: column; align-items: center;">
+    <div id="canvas-container" @drop="onDrop" @dragover.prevent></div>
+    <h2>
+      {{ label }}
+    </h2>
+  </div>
+</template>
+
 <script lang="ts" setup>
 import { imageClassifier } from 'ml5'
 import p5 from 'p5'
@@ -43,25 +52,20 @@ onMounted(async () => {
   classifier = await imageClassifier('MobileNet') // Initialize image classifier
 })
 
-const loadImage = (url) => new Promise((resolve) => {
+function onDrop (event) {
+  event.preventDefault()
+  const file = event.dataTransfer.files[0]
+  const reader = new FileReader()
+  reader.onload = function (event) {
+    loadImage(event.target.result)
+  }
+  reader.readAsDataURL(file)
+}
+
+const loadImage = (url) => {
   puffin = sketchInstance.loadImage(url, () => {
     drawImage()
-    resolve()
+    classifyImage()
   })
-})
-
-const onImageUrlChange = async event => {
-  await loadImage(event.target.value)
-  classifyImage()
 }
 </script>
-
-<template>
-  <div style="display: flex; flex-direction: column; align-items: center;">
-    <div id="canvas-container"></div>
-    <input placeholder="Enter image URL" type="text" @change="onImageUrlChange">
-    <h2>
-      {{ label }}
-    </h2>
-  </div>
-</template>
